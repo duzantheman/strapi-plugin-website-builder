@@ -35,14 +35,19 @@ const setupEventWebhook = (strapi, settings) => {
 
 	for (const [event, eventModels] of Object.entries(events)) {
 		strapi.eventHub.on(event, (data) => {
-			// build on data.media (nothing to verify since it wouldn't get here without having the event setup on the event listener)
-			// otherwise, build on matching models
-			if (!!data.media || eventModels.includes(data.model)) {
-				getPluginService(strapi, 'buildService').build({
-					record: data.entry,
-					settings,
-					trigger: { type: 'event', data: { type: event, ...data } },
-				});
+			// never trigger on 'log' because it causes an endless loop since the build always creates a log when it's done
+			// don't trigger on 'file', because it will double fire on 'media' type files
+			if (data.model !== 'log' && data.model !== 'file') {
+				// build on data.media (nothing to verify since it wouldn't get here without having the event setup on the event listener)
+				// otherwise, build on any model update if event model is '*'
+				// otherwise, build on matching models
+				if (!!data.media || eventModels.includes('*') || eventModels.includes(data.model)) {
+					getPluginService(strapi, 'buildService').build({
+						record: data.entry,
+						settings,
+						trigger: { type: 'event', data: { type: event, ...data } },
+					});
+				}
 			}
 		});
 	}
